@@ -180,7 +180,7 @@ class Post:
     This class unifies access to the properties associated with a post. It implements == and is
     hashable.
 
-    :param context: :attr:`Instaloader.context` used for additional queries if necessary..
+    :param context: :attr:`Instaloader.context` used for additional queries if neccessary..
     :param node: Node structure, as returned by Instagram.
     :param owner_profile: The Profile of the owner, if already known at creation.
     """
@@ -320,22 +320,12 @@ class Post:
     def _obtain_metadata(self):
         if not self._full_metadata_dict:
             pic_json = self._context.doc_id_graphql_query(
-                "8845758582119845", {"shortcode": self.shortcode}
-            )["data"]["xdt_shortcode_media"]
-            if pic_json is None:
+                '8845758582119845',
+                {'shortcode': self.shortcode}
+            )
+            self._full_metadata_dict = pic_json['data']['xdt_shortcode_media']
+            if self._full_metadata_dict is None:
                 raise BadResponseException("Fetching Post metadata failed.")
-            try:
-                xdt_types = {
-                    "XDTGraphImage": "GraphImage",
-                    "XDTGraphVideo": "GraphVideo",
-                    "XDTGraphSidecar": "GraphSidecar",
-                }
-                pic_json["__typename"] = xdt_types[pic_json["__typename"]]
-            except KeyError as exc:
-                raise BadResponseException(
-                    f"Unknown __typename in metadata: {pic_json['__typename']}."
-                ) from exc
-            self._full_metadata_dict = pic_json
             if self.shortcode != self._full_metadata_dict['shortcode']:
                 self._node.update(self._full_metadata_dict)
                 raise PostChangedException
@@ -512,14 +502,14 @@ class Post:
 
     @property
     def caption_hashtags(self) -> List[str]:
-        """List of all lowercased hashtags (without preceding #) that occur in the Post's caption."""
+        """List of all lowercased hashtags (without preceeding #) that occur in the Post's caption."""
         if not self.caption:
             return []
         return _hashtag_regex.findall(self.caption.lower())
 
     @property
     def caption_mentions(self) -> List[str]:
-        """List of all lowercased profiles that are mentioned in the Post's caption, without preceding @."""
+        """List of all lowercased profiles that are mentioned in the Post's caption, without preceeding @."""
         if not self.caption:
             return []
         return _mention_regex.findall(self.caption.lower())
@@ -744,11 +734,7 @@ class Post:
             # Avoid doing additional requests if there are no comments
             return []
 
-        try:
-            comment_edges = self._field("edge_media_to_parent_comment", "edges")
-        except KeyError:
-            comment_edges = self._field("edge_media_to_comment", "edges")
-
+        comment_edges = self._field('edge_media_to_parent_comment', 'edges')
         answers_count = sum(edge['node'].get('edge_threaded_comments', {}).get('count', 0) for edge in comment_edges)
 
         if self.comments == len(comment_edges) + answers_count:
@@ -1079,7 +1065,7 @@ class Profile:
     @property
     def biography_hashtags(self) -> List[str]:
         """
-        List of all lowercased hashtags (without preceding #) that occur in the Profile's biography.
+        List of all lowercased hashtags (without preceeding #) that occur in the Profile's biography.
 
         .. versionadded:: 4.10
         """
@@ -1090,7 +1076,7 @@ class Profile:
     @property
     def biography_mentions(self) -> List[str]:
         """
-        List of all lowercased profiles that are mentioned in the Profile's biography, without preceding @.
+        List of all lowercased profiles that are mentioned in the Profile's biography, without preceeding @.
 
         .. versionadded:: 4.10
         """
@@ -1243,30 +1229,6 @@ class Profile:
             {'id': self.userid},
             'https://www.instagram.com/{0}/'.format(self.username),
             is_first=Profile._make_is_newest_checker()
-        )
-
-    def get_reels(self) -> NodeIterator[Post]:
-        """Retrieve all reels from a profile.
-
-        :rtype: NodeIterator[Post]
-
-        .. versionadded:: 4.14.0
-
-        """
-        self._obtain_metadata()
-        return NodeIterator(
-            context = self._context,
-            edge_extractor = lambda d: d['data']['xdt_api__v1__clips__user__connection_v2'],
-            # Reels post info is incomplete relative to regular posts so we create a Post from the shortcode
-            # and fetch the additional metadata with an additional API request per Reel
-            node_wrapper = lambda n: Post.from_shortcode(context=self._context, shortcode=n["media"]["code"]),
-            query_variables = {'data': {
-                'page_size': 12, 'include_feed_video': True, "target_user_id": str(self.userid)}},
-            query_referer = 'https://www.instagram.com/{0}/'.format(self.username),
-            is_first = Profile._make_is_newest_checker(),
-            # fb_api_req_friendly_name=PolarisProfileReelsTabContentQuery_connection
-            doc_id = '7845543455542541',
-            query_hash = None,
         )
 
     def get_igtv_posts(self) -> NodeIterator[Post]:
@@ -1423,11 +1385,11 @@ class StoryItem:
 
         .. versionadded:: 4.9
         """
-        pic_json = context.graphql_query(
-            '2b0673e0dc4580674a88d426fe00ea90',
+        pic_json = context.doc_id_graphql_query(
+            '8845758582119845',
             {'shortcode': Post.mediaid_to_shortcode(mediaid)}
         )
-        shortcode_media = pic_json['data']['shortcode_media']
+        shortcode_media = pic_json['data']['xdt_shortcode_media']
         if shortcode_media is None:
             raise BadResponseException("Fetching StoryItem metadata failed.")
         return cls(context, shortcode_media)
@@ -1534,7 +1496,7 @@ class StoryItem:
     @property
     def caption_hashtags(self) -> List[str]:
         """
-        List of all lowercased hashtags (without preceding #) that occur in the StoryItem's caption.
+        List of all lowercased hashtags (without preceeding #) that occur in the StoryItem's caption.
 
         .. versionadded:: 4.10
         """
@@ -1545,7 +1507,7 @@ class StoryItem:
     @property
     def caption_mentions(self) -> List[str]:
         """
-        List of all lowercased profiles that are mentioned in the StoryItem's caption, without preceding @.
+        List of all lowercased profiles that are mentioned in the StoryItem's caption, without preceeding @.
 
         .. versionadded:: 4.10
         """
@@ -1844,11 +1806,11 @@ class Hashtag:
     @classmethod
     def from_name(cls, context: InstaloaderContext, name: str):
         """
-        Create a Hashtag instance from a given hashtag name, without preceding '#'. Raises an Exception if there is no
+        Create a Hashtag instance from a given hashtag name, without preceeding '#'. Raises an Exception if there is no
         hashtag with the given name.
 
         :param context: :attr:`Instaloader.context`
-        :param name: Hashtag, without preceding '#'
+        :param name: Hashtag, without preceeding '#'
         :raises: :class:`QueryReturnedNotFoundException`
         """
         # pylint:disable=protected-access
@@ -1858,13 +1820,11 @@ class Hashtag:
 
     @property
     def name(self):
-        """Hashtag name lowercased, without preceding '#'"""
+        """Hashtag name lowercased, without preceeding '#'"""
         return self._node["name"].lower()
 
     def _query(self, params):
-        json_response = self._context.get_iphone_json(
-            "api/v1/tags/web_info/", {**params, "tag_name": self.name}
-        )
+        json_response = self._context.get_json("explore/tags/{0}/".format(self.name), params)
         return json_response["graphql"]["hashtag"] if "graphql" in json_response else json_response["data"]
 
     def _obtain_metadata(self):
@@ -2187,7 +2147,7 @@ def load_structure(context: InstaloaderContext, json_structure: dict) -> JsonExp
     """Loads a :class:`Post`, :class:`Profile`, :class:`StoryItem`, :class:`Hashtag` or :class:`FrozenNodeIterator` from
     a json structure.
 
-    :param context: :attr:`Instaloader.context` linked to the new object, used for additional queries if necessary.
+    :param context: :attr:`Instaloader.context` linked to the new object, used for additional queries if neccessary.
     :param json_structure: Instaloader JSON structure
 
     .. versionadded:: 4.8
@@ -2217,7 +2177,7 @@ def load_structure_from_file(context: InstaloaderContext, filename: str) -> Json
     """Loads a :class:`Post`, :class:`Profile`, :class:`StoryItem`, :class:`Hashtag` or :class:`FrozenNodeIterator` from
     a '.json' or '.json.xz' file that has been saved by :func:`save_structure_to_file`.
 
-    :param context: :attr:`Instaloader.context` linked to the new object, used for additional queries if necessary.
+    :param context: :attr:`Instaloader.context` linked to the new object, used for additional queries if neccessary.
     :param filename: Filename, ends in '.json' or '.json.xz'
     """
     compressed = filename.endswith('.xz')

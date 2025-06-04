@@ -83,7 +83,7 @@ def _requires_login(func: Callable) -> Callable:
 
 
 def _retry_on_connection_error(func: Callable) -> Callable:
-    """Decorator to retry the function max_connection_attempts number of times.
+    """Decorator to retry the function max_connection_attemps number of times.
 
     Herewith-decorated functions need an ``_attempt`` keyword argument.
 
@@ -753,12 +753,12 @@ class Instaloader:
                                                             mtime=post.date_local, filename_suffix=suffix)
                 else:
                     downloaded = False
-        elif post.typename == 'GraphImage':
+        elif post.typename == 'GraphImage' or post.typename == 'XDTGraphImage':
             # Download picture
             if self.download_pictures:
                 downloaded = (not _already_downloaded(filename + ".jpg") and
                               self.download_pic(filename=filename, url=post.url, mtime=post.date_local))
-        elif post.typename == 'GraphVideo':
+        elif post.typename == 'GraphVideo' or post.typename == 'XDTGraphVideo':
             # Download video thumbnail (--no-pictures implies --no-video-thumbnails)
             if self.download_pictures and self.download_video_thumbnails:
                 with self.context.error_catcher("Video thumbnail of {}".format(post)):
@@ -1215,7 +1215,6 @@ class Instaloader:
            Use :meth:`Hashtag.get_posts_resumable`."""
         return Hashtag.from_name(self.context, hashtag).get_posts_resumable()
 
-    @_requires_login
     def download_hashtag(self, hashtag: Union[Hashtag, str],
                          max_count: Optional[int] = None,
                          post_filter: Optional[Callable[[Post], bool]] = None,
@@ -1281,31 +1280,6 @@ class Instaloader:
                                  fast_update, post_filter, takewhile=posts_takewhile)
         if latest_stamps is not None and tagged_posts.first_item is not None:
             latest_stamps.set_last_tagged_timestamp(profile.username, tagged_posts.first_item.date_local)
-
-    def download_reels(self, profile: Profile, fast_update: bool = False,
-                      post_filter: Optional[Callable[[Post], bool]] = None,
-                      latest_stamps: Optional[LatestStamps] = None) -> None:
-        """Download reels videos of a profile.
-
-        .. versionadded:: 4.14.0
-
-        """
-        self.context.log("Retrieving reels videos for profile {}.".format(profile.username))
-        posts_takewhile: Optional[Callable[[Post], bool]] = None
-        if latest_stamps is not None:
-            last_scraped = latest_stamps.get_last_reels_timestamp(profile.username)
-            posts_takewhile = lambda p: p.date_local > last_scraped
-        reels = profile.get_reels()
-        self.posts_download_loop(
-            reels,
-            profile.username,
-            fast_update,
-            post_filter,
-            owner_profile=profile,
-            takewhile=posts_takewhile,
-        )
-        if latest_stamps is not None and reels.first_item is not None:
-            latest_stamps.set_last_reels_timestamp(profile.username, reels.first_item.date_local)
 
     def download_igtv(self, profile: Profile, fast_update: bool = False,
                       post_filter: Optional[Callable[[Post], bool]] = None,
@@ -1437,8 +1411,7 @@ class Instaloader:
                           storyitem_filter: Optional[Callable[[Post], bool]] = None,
                           raise_errors: bool = False,
                           latest_stamps: Optional[LatestStamps] = None,
-                          max_count: Optional[int] = None,
-                          reels: bool = False):
+                          max_count: Optional[int] = None):
         """High-level method to download set of profiles.
 
         :param profiles: Set of profiles to download.
@@ -1456,7 +1429,6 @@ class Instaloader:
            catched and printed with :meth:`InstaloaderContext.error_catcher`.
         :param latest_stamps: :option:`--latest-stamps`.
         :param max_count: Maximum count of posts to download.
-        :param reels: :option:`--reels`.
 
         .. versionadded:: 4.1
 
@@ -1468,9 +1440,6 @@ class Instaloader:
 
         .. versionchanged:: 4.13
            Add `max_count` parameter.
-
-        .. versionchanged:: 4.14
-           Add `reels` parameter.
         """
 
         @contextmanager
@@ -1513,12 +1482,6 @@ class Instaloader:
                     with self.context.error_catcher('Download tagged of {}'.format(profile_name)):
                         self.download_tagged(profile, fast_update=fast_update, post_filter=post_filter,
                                              latest_stamps=latest_stamps)
-
-                # Download reels, if requested
-                if reels:
-                    with self.context.error_catcher('Download reels of {}'.format(profile_name)):
-                        self.download_reels(profile, fast_update=fast_update, post_filter=post_filter,
-                                           latest_stamps=latest_stamps)
 
                 # Download IGTV, if requested
                 if igtv:
