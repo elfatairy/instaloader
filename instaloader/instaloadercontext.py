@@ -32,7 +32,7 @@ def copy_session(session: requests.Session, request_timeout: Optional[float] = N
 
 def default_user_agent() -> str:
     return ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
-            '(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36')
+            '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36')
 
 
 def default_iphone_headers() -> Dict[str, Any]:
@@ -102,7 +102,7 @@ class InstaloaderContext:
 
         self._rate_controller = rate_controller(self) if rate_controller is not None else RateController(self)
 
-        # Can be set to True for testing, disables suppression of InstaloaderContext._error_catcher
+        # Can be set to True for testing, disables supression of InstaloaderContext._error_catcher
         self.raise_all_errors = False
 
         # HTTP status codes that should cause an AbortDownloadException
@@ -202,7 +202,7 @@ class InstaloaderContext:
     def get_anonymous_session(self) -> requests.Session:
         """Returns our default anonymous requests.Session object."""
         session = requests.Session()
-        session.cookies.update({'mid': '', 'ig_pr': '1',
+        session.cookies.update({'sessionid': '', 'mid': '', 'ig_pr': '1',
                                 'ig_vw': '1920', 'csrftoken': '',
                                 's_network': '', 'ds_user_id': ''})
         session.headers.update(self._default_http_header(empty_session_only=True))
